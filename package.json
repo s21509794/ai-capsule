@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "AI Capsule – Cloud-deployed AI Prompt Manager",
   "scripts": {
+    "postinstall": "cd client && npm install",
     "install:all": "npm install && cd client && npm install",
     "build": "cd client && npm run build",
     "start": "node server/index.js",
