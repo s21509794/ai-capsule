@@ -12,10 +12,10 @@ Designed by Dr Shuo Ding
 | Item | Value |
 |------|-------|
 | **Platform** | Render (free web service) |
-| **Public URL** | `https://ai-capsule-XXXX.onrender.com` *(update after first deploy)* |
-| **Health Check** | `https://ai-capsule-XXXX.onrender.com/api/health` |
+| **Public URL** | `https://ai-capsule-1.onrender.com` |
+| **Health Check** | `https://ai-capsule-1.onrender.com/api/health` |
 
-> **Note:** Replace `ai-capsule-XXXX` with your actual Render service name after deployment.
+
 
 ---
 
@@ -23,7 +23,7 @@ Designed by Dr Shuo Ding
 
 ### Prerequisites
 - Node.js v18+
-- A Google Cloud project with OAuth 2.0 credentials (see §5)
+- A GitHub OAuth App with credentials (see §5)
 
 ### Steps
 
@@ -31,20 +31,17 @@ Designed by Dr Shuo Ding
 # 1. Clone / unzip the project
 cd "AI Capsule"
 
-# 2. Install server dependencies
+# 2. Install all dependencies (postinstall automatically installs client deps too)
 npm install
 
-# 3. Install client dependencies
-cd client && npm install && cd ..
-
-# 4. Create your local environment file
+# 3. Create your local environment file
 cp .env.example .env
 # Then edit .env and fill in real values (see §4)
 
-# 5. Run the Express backend (port 3001)
+# 4. Run the Express backend (port 3001)
 npm run dev:server
 
-# 6. In a second terminal, run the React dev server (port 5173)
+# 5. In a second terminal, run the React dev server (port 5173)
 npm run dev:client
 ```
 
@@ -65,10 +62,10 @@ npm start          # serves frontend + API from port 3001
 | Method | Route | Access | Purpose |
 |--------|-------|--------|---------|
 | GET | `/api/health` | Public | Returns `{ "status": "ok" }` |
-| GET | `/login` | Public | Redirects to Google OAuth consent screen |
-| GET | `/auth/google/callback` | Public | OAuth callback — issues JWT cookie |
+| GET | `/login` | Public | Redirects to GitHub OAuth consent screen |
+| GET | `/auth/github/callback` | Public | OAuth callback — issues JWT cookie |
 | GET | `/logout` | Public | Clears JWT cookie, redirects to `/` |
-| GET | `/api/me` | JWT | Returns logged-in user info |
+| GET | `/api/me` | JWT | Returns logged-in user info (id, username, email, avatar) |
 | GET | `/api/capsules` | JWT | List authenticated user's capsules |
 | POST | `/api/capsules` | JWT | Create a new capsule |
 | PUT | `/api/capsules/:id` | JWT | Update own capsule |
@@ -86,13 +83,17 @@ Create a `.env` file in the project root (never commit this file):
 PORT=3001
 NODE_ENV=development
 
+# JWT — sign with a long random string (minimum 32 chars)
 JWT_SECRET=<long random string, at least 32 chars>
 
-GOOGLE_CLIENT_ID=<from Google Cloud Console>
-GOOGLE_CLIENT_SECRET=<from Google Cloud Console>
+# GitHub OAuth App credentials
+# Create at: https://github.com/settings/developers → OAuth Apps → New OAuth App
+GITHUB_CLIENT_ID=<from GitHub Developer Settings>
+GITHUB_CLIENT_SECRET=<from GitHub Developer Settings>
 
-# In dev: http://localhost:3001
-# In prod: https://your-app.onrender.com
+# The base URL of the deployed app (used for OAuth callback redirect)
+# Dev:  http://localhost:3001
+# Prod: https://your-app.onrender.com
 CLIENT_URL=http://localhost:3001
 ```
 
@@ -100,38 +101,44 @@ CLIENT_URL=http://localhost:3001
 
 ---
 
-## 5. OAuth Configuration (Google)
+## 5. OAuth Configuration (GitHub)
 
-### Setting up Google OAuth
+### Setting up a GitHub OAuth App
 
-1. Go to [Google Cloud Console](https://console.cloud.google.com/) → APIs & Services → Credentials
-2. Click **Create Credentials → OAuth 2.0 Client ID**
-3. Application type: **Web application**
-4. Name: `AI Capsule`
-5. Authorised redirect URIs:
-   - Dev: `http://localhost:3001/auth/google/callback`
-   - Prod: `https://your-app.onrender.com/auth/google/callback`
-6. Copy **Client ID** and **Client Secret** into `.env`
+1. Go to [GitHub Developer Settings](https://github.com/settings/developers) → **OAuth Apps** → **New OAuth App**
+2. Fill in:
+   - **Application name:** `AI Capsule`
+   - **Homepage URL:**
+     - Dev: `http://localhost:3001`
+     - Prod: `https://your-app.onrender.com`
+   - **Authorization callback URL:**
+     - Dev: `http://localhost:3001/auth/github/callback`
+     - Prod: `https://your-app.onrender.com/auth/github/callback`
+3. Click **Register application**
+4. Copy **Client ID** and generate a **Client Secret**, then paste both into `.env`
 
 ### OAuth → JWT Flow
 
-1. User clicks "Continue with Google" on `/login` page
+1. User clicks "Continue with GitHub" on the `/login` page
 2. Browser is redirected to `GET /login` (Express route)
-3. Express redirects to Google's OAuth consent screen with the configured scopes (`openid email profile`)
-4. After consent, Google redirects to `GET /auth/google/callback?code=…`
-5. Express exchanges the `code` for Google tokens via `https://oauth2.googleapis.com/token`
-6. Express fetches the user's Google profile (ID, name, email, avatar) via `https://www.googleapis.com/oauth2/v2/userinfo`
-7. Express signs its **own application JWT** using `jsonwebtoken` with the user's Google ID as `user_id`
-8. The JWT is stored in a **`Secure`, `HttpOnly` cookie named `token`** — it is never exposed to JavaScript or localStorage
-9. Express redirects to `/dashboard`
-10. On subsequent requests, the browser automatically sends the `token` cookie; Express verifies it with `jwt.verify(token, JWT_SECRET)`
+3. Express redirects to GitHub's OAuth consent screen with scopes `read:user user:email`
+4. After consent, GitHub redirects to `GET /auth/github/callback?code=…`
+5. Express exchanges the `code` for a GitHub access token via `https://github.com/login/oauth/access_token`
+6. Express fetches the user's GitHub profile (numeric ID, login, avatar_url) via `https://api.github.com/user`
+7. If the profile email is private, Express fetches the primary verified email via `https://api.github.com/user/emails`
+8. Express signs its **own application JWT** using `jsonwebtoken` with the user's GitHub numeric ID as `user_id` (expires in **7 days**)
+9. The JWT is stored in a **`Secure`, `HttpOnly` cookie named `token`** — it is never exposed to JavaScript or localStorage
+10. Express redirects to `/dashboard`
+11. On subsequent requests, the browser automatically sends the `token` cookie; Express verifies it with `jwt.verify(token, JWT_SECRET)`
+
+> **Note:** The GitHub access token is used only to fetch the user profile and is immediately discarded. The cookie holds our own application JWT — not the GitHub token.
 
 ### JWT Verification
 
 The `protect` middleware in `server/middleware/protect.js`:
 - Reads `req.cookies.token`
 - Calls `jwt.verify(token, process.env.JWT_SECRET)`
-- Attaches `req.user = { user_id, username, avatar }` on success
+- Attaches `req.user = { user_id, username, email, avatar }` on success
 - Returns `401 Unauthorized` if no cookie or if JWT is invalid/expired
 
 All four `/api/capsules` routes use this middleware.
@@ -168,7 +175,7 @@ The table is created automatically when the server starts (if it doesn't already
 
 ### User Ownership
 
-`user_id` is the Google user ID obtained from the verified JWT — it is **never** accepted from the frontend request body.
+`user_id` is the GitHub numeric user ID obtained from the verified JWT — it is **never** accepted from the frontend request body.
 
 - **CREATE**: `user_id` is inserted from `req.user.user_id`
 - **READ**: `WHERE user_id = req.user.user_id`
@@ -187,7 +194,7 @@ Run these against the deployed URL before submission:
 
 ### Test 1 — No authentication (must return 401)
 ```bash
-curl -i https://ai-capsule-XXXX.onrender.com/api/capsules
+curl -i https://ai-capsule-1.onrender.com/api/capsules
 ```
 **Expected output:**
 ```
@@ -197,15 +204,13 @@ HTTP/2 401
 
 ### Test 2 — Fake / invalid JWT (must return 401)
 ```bash
-curl -i -H "Cookie: token=fake-token-123" https://ai-capsule-XXXX.onrender.com/api/capsules
+curl -i -H "Cookie: token=fake-token-123" https://ai-capsule-1.onrender.com/api/capsules
 ```
 **Expected output:**
 ```
 HTTP/2 401
 {"error":"Invalid or expired token."}
 ```
-
-*(Update the URL with your actual Render URL before running.)*
 
 ---
 
@@ -219,7 +224,7 @@ HTTP/2 401
 
 ### Tools Used
 - **Google Gemini (Antigravity IDE)** — used extensively for scaffolding, component structure, Express routes, SQLite integration, OAuth/JWT flow, CSS design system, and debugging.
-- **ChatGPT** — used for reference on Google OAuth 2.0 redirect URI configuration and sql.js async patterns.
+- **ChatGPT** — used for reference on GitHub OAuth redirect URI configuration and sql.js async patterns.
 
 ### Problem Found and Corrected in AI-Generated Code
 
@@ -231,7 +236,7 @@ HTTP/2 401
 
 1. Started the Express server locally with `npm run dev:server`
 2. Opened the Vite dev server on port 5173
-3. Clicked "Continue with Google" — browser redirected to Google consent screen
+3. Clicked "Continue with GitHub" — browser redirected to GitHub consent screen
 4. Completed consent → was redirected to `/dashboard`
 5. Opened DevTools → Application → Cookies → confirmed `token` cookie is `HttpOnly` and inaccessible from JavaScript
 6. Ran `curl -i http://localhost:3001/api/capsules` without cookie → confirmed `401`
@@ -252,7 +257,20 @@ In production, I chose to serve the React `dist/` build as static files directly
 
 ---
 
-## 10. Project Structure
+## 10. Video Evidence
+
+The submission video demonstrates:
+1. The deployed app loading at `https://ai-capsule-1.onrender.com`
+2. GitHub OAuth login flow (redirect → consent → dashboard)
+3. Creating a new capsule (all fields filled)
+4. Editing an existing capsule
+5. Deleting a capsule
+6. Running the two cURL tests showing `401` responses
+7. Showing the `token` cookie is `HttpOnly` in browser DevTools
+
+---
+
+## 11. Project Structure
 
 ```
 AI Capsule/
@@ -277,7 +295,7 @@ AI Capsule/
 │   ├── routes/
 │   │   ├── health.js        # GET /api/health
 │   │   └── capsules.js      # CRUD /api/capsules
-│   ├── auth.js              # Google OAuth + JWT issuance
+│   ├── auth.js              # GitHub OAuth + JWT issuance
 │   ├── db.js                # sql.js SQLite wrapper
 │   └── index.js             # Express entry point
 ├── .env.example
