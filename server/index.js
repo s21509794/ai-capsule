@@ -43,14 +43,19 @@ app.use(capsulesRouter);
 
 // ─── Serve React in Production ────────────────────────────────────────────────
 
-if (isProd) {
-  const clientDist = path.join(__dirname, '..', 'client', 'dist');
+const clientDist = path.join(__dirname, '..', 'client', 'dist');
+const fs = require('fs');
+
+if (fs.existsSync(clientDist)) {
   app.use(express.static(clientDist));
 
   // All non-API routes fall through to React's index.html (client-side routing)
   app.get('*', (req, res) => {
     res.sendFile(path.join(clientDist, 'index.html'));
   });
+  console.log('Serving React build from:', clientDist);
+} else {
+  console.warn('No client/dist found — React build missing!');
 }
 
 // ─── Start Server ─────────────────────────────────────────────────────────────
