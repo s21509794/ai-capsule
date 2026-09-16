@@ -54,9 +54,12 @@ export default function Landing() {
           <a href="/login" className="btn btn-primary btn-lg" id="hero-cta-btn">
             🚀 Get Started — It's Free
           </a>
-          <Link to="#features" className="btn btn-ghost btn-lg">
+          <button
+            className="btn btn-ghost btn-lg"
+            onClick={() => document.getElementById('features')?.scrollIntoView({ behavior: 'smooth' })}
+          >
             See Features ↓
-          </Link>
+          </button>
         </div>
       </section>
 
