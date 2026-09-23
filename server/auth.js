@@ -99,7 +99,7 @@ router.get('/auth/github/callback', async (req, res) => {
     );
 
     // Step 4 – Store in Secure, HttpOnly cookie named "token"
-    const isProd = process.env.NODE_ENV === 'production';
+    const isProd = process.env.NODE_ENV !== 'development';
     res.cookie('token', appJwt, {
       httpOnly: true,
       secure: isProd,       // true = HTTPS only in production
@@ -122,7 +122,7 @@ router.get('/auth/github/callback', async (req, res) => {
 router.get('/logout', (req, res) => {
   res.clearCookie('token', {
     httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
+    secure: process.env.NODE_ENV !== 'development',
     sameSite: 'lax',
   });
   res.redirect('/');
