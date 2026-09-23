@@ -11,7 +11,7 @@ const capsulesRouter = require('./routes/capsules');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
-const isProd = process.env.NODE_ENV === 'production';
+const isProd = process.env.NODE_ENV !== 'development';
 
 // ─── Middleware ────────────────────────────────────────────────────────────────
 
