@@ -12,8 +12,8 @@ Designed by Dr Shuo Ding
 | Item | Value |
 |------|-------|
 | **Platform** | Render (free web service) |
-| **Public URL** | `https://ai-capsule-1.onrender.com` |
-| **Health Check** | `https://ai-capsule-1.onrender.com/api/health` |
+| **Public URL** | `https://ai-capsule-q12i.onrender.com` |
+| **Health Check** | `https://ai-capsule-q12i.onrender.com/api/health` |
 
 
 
@@ -110,12 +110,14 @@ CLIENT_URL=http://localhost:3001
    - **Application name:** `AI Capsule`
    - **Homepage URL:**
      - Dev: `http://localhost:3001`
-     - Prod: `https://your-app.onrender.com`
+     - Prod: `https://ai-capsule-q12i.onrender.com`
    - **Authorization callback URL:**
      - Dev: `http://localhost:3001/auth/github/callback`
-     - Prod: `https://your-app.onrender.com/auth/github/callback`
+     - Prod: `https://ai-capsule-q12i.onrender.com/auth/github/callback`
 3. Click **Register application**
 4. Copy **Client ID** and generate a **Client Secret**, then paste both into `.env`
+
+> **Important:** The `CLIENT_URL` environment variable on Render must match the Homepage URL exactly (e.g. `https://ai-capsule-q12i.onrender.com`). If `CLIENT_URL` is missing or wrong, the OAuth redirect will point to `localhost` and GitHub will reject it.
 
 ### OAuth → JWT Flow
 
@@ -194,7 +196,7 @@ Run these against the deployed URL before submission:
 
 ### Test 1 — No authentication (must return 401)
 ```bash
-curl -i https://ai-capsule-1.onrender.com/api/capsules
+curl -i https://ai-capsule-q12i.onrender.com/api/capsules
 ```
 **Expected output:**
 ```
@@ -204,7 +206,7 @@ HTTP/2 401
 
 ### Test 2 — Fake / invalid JWT (must return 401)
 ```bash
-curl -i -H "Cookie: token=fake-token-123" https://ai-capsule-1.onrender.com/api/capsules
+curl -i -H "Cookie: token=fake-token-123" https://ai-capsule-q12i.onrender.com/api/capsules
 ```
 **Expected output:**
 ```
@@ -226,11 +228,15 @@ HTTP/2 401
 - **Google Gemini (Antigravity IDE)** — used extensively for scaffolding, component structure, Express routes, SQLite integration, OAuth/JWT flow, CSS design system, and debugging.
 - **ChatGPT** — used for reference on GitHub OAuth redirect URI configuration and sql.js async patterns.
 
-### Problem Found and Corrected in AI-Generated Code
+### Problems Found and Corrected in AI-Generated Code
 
-**Problem:** The initial AI-generated database code used `better-sqlite3`, a native Node.js addon that requires Visual Studio C++ build tools to compile on Windows. This caused `npm install` to fail with `gyp ERR! find VS` errors on the development machine.
+**Problem 1:** The initial AI-generated database code used `better-sqlite3`, a native Node.js addon that requires Visual Studio C++ build tools to compile on Windows. This caused `npm install` to fail with `gyp ERR! find VS` errors on the development machine.
 
 **Correction:** Switched to `sql.js` (a pure JavaScript port of SQLite compiled to WebAssembly). The `db.js` module was rewritten to use `initSqlJs()` asynchronously and to persist the in-memory database to disk with `saveDb()` after every write operation. This required making all route handlers `async` and updating the capsules router accordingly.
+
+**Problem 2:** The production `isProd` flag in `server/index.js` and `server/auth.js` was set using `process.env.NODE_ENV === 'production'`. On Render, when `NODE_ENV` was not explicitly configured, this evaluated to `false`, causing the server to log `[development]`, set cookies without the `Secure` flag, and apply CORS middleware unnecessarily.
+
+**Correction:** Changed the check to `process.env.NODE_ENV !== 'development'` so the server defaults to production mode unless explicitly running in a local development environment. This also required adding `NODE_ENV=production` and `CLIENT_URL=https://ai-capsule-q12i.onrender.com` to the Render environment variables, and registering the production callback URL in the GitHub OAuth App settings.
 
 ### Verification of OAuth + JWT + Protected API
 
@@ -260,7 +266,7 @@ In production, I chose to serve the React `dist/` build as static files directly
 ## 10. Video Evidence
 
 The submission video demonstrates:
-1. The deployed app loading at `https://ai-capsule-1.onrender.com`
+1. The deployed app loading at `https://ai-capsule-q12i.onrender.com`
 2. GitHub OAuth login flow (redirect → consent → dashboard)
 3. Creating a new capsule (all fields filled)
 4. Editing an existing capsule
